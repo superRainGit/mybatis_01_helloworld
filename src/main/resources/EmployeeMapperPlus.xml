@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.zhang.dao.EmployeeMapperPlus">
+
+	<!-- 
+		自定义某个javaBean的封装规则 
+			type:自定义规则的Java类型
+			id:唯一ID方便引用
+	-->
+	<resultMap type="cn.zhang.beans.Employee" id="MyEmp">
+		<!-- 
+			id:定义主键底层会有优化
+			指定主键列的封装规则 
+				column:指定那一列
+				property:指定对应的javaBean属性
+		-->
+		<id column="id" property="id"/>
+		<!-- 定义普通封装规则 -->
+		<result column="last_name" property="lastName"/>
+		<!-- 其他不指定的列会自动封装，建议是我们只要写resultMap就把全部的规则都写上 -->
+		<result column="email" property="email"/>
+		<result column="gender" property="gender"/>
+	</resultMap>
+	
+	<!-- resultMap:自定义的结果映射 -->
+	<select id="getEmpById" resultMap="MyEmp">
+		SELECT * FROM EMPLOYEE WHERE ID = #{id}
+	</select>
+	
+	<!--  
+		场景一:查询Employee的同时查询员工对应的部门
+			Employee==Department
+			id | last_name | gender | email          | did | dept_name
+	-->
+	<!-- 通过使用级联的特性进行值的赋予 -->
+	<resultMap type="cn.zhang.beans.Employee" id="MyDifMapWithJiLian">
+		<id column="id" property="id"/>
+		<result column="last_name" property="lastName"/>
+		<result column="gender" property="gender"/>
+		<result column="email" property="email"/>
+		<!-- 
+			联合查询:使用级联属性进行值的封装 
+		-->
+		<result column="did" property="dept.id"/>
+		<result column="dept_name" property="dept.deptName"/>
+	</resultMap>
+	
+	<!-- 通过使用association定义关联的[单个对象]的封装规则 -->
+	<resultMap type="cn.zhang.beans.Employee" id="MyDifMapWithAssociation">
+		<id column="id" property="id"/>
+		<result column="last_name" property="lastName"/>
+		<result column="gender" property="gender"/>
+		<result column="email" property="email"/>
+		<!-- 
+			association:可以指定联合的javaBean对象
+				property:指定哪个属性是联合的对象
+				javaType:指定要联合的javaBean的java类型[切记不能省略]
+		-->
+		<association property="dept" javaType="cn.zhang.beans.Department">
+			<id column="did" property="id"/>
+			<result column="dept_name" property="deptName"/>
+		</association>
+	</resultMap>
+	
+	<select id="getEmpAndDept" resultMap="MyDifMapWithAssociation">
+		SELECT e.id,last_name,gender,email,d.id did,dept_name FROM EMPLOYEE e, DEPT d WHERE e.id = d.id AND e.id = #{id}	
+	</select>
+	
+	<!-- 使用association进行分步查询 -->
+	<!-- 
+		分步查询可以使用延时加载(按需加载)
+		Employee==>dept
+			我们每次查询Employee对象的时候，会连带着将dept也查询出来
+			使用延时加载可以保证我们使用的时候再去查询
+		基于分步查询的基础之上，加上两个配置，就可以完成延时加载
+	-->
+	<select id="getEmpByStep" resultMap="MyDifMapWithDiscriminator">
+		SELECT * FROM EMPLOYEE WHERE ID = #{id}
+	</select>
+	
+	<resultMap type="cn.zhang.beans.Employee" id="MyDifMapWithAssociationByStep">
+		<id column="id" property="id"/>
+		<result column="last_name" property="lastName"/>
+		<result column="email" property="email"/>
+		<result column="gender" property="gender"/>
+		<!--  
+			使用association进行分步查询
+				select:指定了当前的属性是哪一个select方法查出的结果
+				column:指定将那一列的值传递给这个select方法
+			流程:使用select指定的方法(传入column指定的这列参数的值)查出对象 并封装给property指定的属性
+		-->
+		<association property="dept" select="cn.zhang.dao.DepartmentMapper.getDeptById"
+			column="d_id">
+		</association>
+	</resultMap>
+	<!-- =======================================association只能指定单个对象的查询================================================== -->
+
+	<select id="getEmpsByDeptId" resultType="cn.zhang.beans.Employee">
+		SELECT id,last_name lastName,gender,email FROM EMPLOYEE WHERE D_ID = #{id}
+	</select>
+	
+	<!--  
+		<discriminator javaType=""></discriminator>
+		鉴别器:mybatis可以使用discriminator判断某列的值，然后根据某列的值改变其封装行为
+		封装Employee
+		场景三:
+			如果查出的是女生，就把部门信息查询出来，否则不查询
+			如果是男生，把lastName这一类的值赋值给email
+	-->
+	<resultMap type="cn.zhang.beans.Employee" id="MyDifMapWithDiscriminator">
+		<id column="id" property="id"/>
+		<result column="last_name" property="lastName"/>
+		<result column="email" property="email"/>
+		<result column="gender" property="gender"/>
+		<!--  
+			column:判断指定的列名[即按照那一列进行区分或者判断]
+			javaType:列值对应的java类型
+		-->
+		<discriminator javaType="string" column="gender">
+			<!--  
+				case:指针对鉴别器的那个鉴别列进行分发   此例中指的是gender属性  数据库中有两种不一样的取值  所以需要有两个value不同的case
+				resultType:指定封装的结果类型
+				resuttMap:与resultType二选一  不能不指定   用于进行规则的封装
+			-->
+			<case value="0" resultType="cn.zhang.beans.Employee">
+				<association property="dept" select="cn.zhang.dao.DepartmentMapper.getDeptById"
+					column="d_id">
+				</association>
+			</case>
+			<case value="1" resultType="cn.zhang.beans.Employee">
+				<id column="id" property="id"/>
+				<result column="last_name" property="lastName"/>
+				<result column="last_name" property="email"/>
+				<result column="gender" property="gender"/>
+			</case>
+		</discriminator>
+	</resultMap>
+</mapper>

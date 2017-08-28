@@ -1,0 +1,59 @@
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.zhang.dao.DepartmentMapper">
+
+	<select id="getDeptById" resultType="cn.zhang.beans.Department">
+		SELECT ID,DEPT_NAME deptName FROM DEPT WHERE ID = #{id}
+	</select>
+	
+	<!-- 场景二:查询Department对象的时候将其对应的员工集合信息查询出来 -->
+	<!-- 嵌套结果集的方式，定义关联的集合类型元素的封装规则 -->
+	<resultMap type="cn.zhang.beans.Department" id="MyMapWithCollection">
+		<id column="id" property="id"/>
+		<result column="dept_name" property="deptName"/>
+		<!-- 
+			collection:定义关联的集合类型的封装规则 
+				ofType:指定集合里面元素的类型
+		-->
+		<collection property="emps" ofType="cn.zhang.beans.Employee">
+			<id column="eid" property="id"/>
+			<result column="last_name" property="lastName"/>
+			<result column="gender" property="gender"/>
+			<result column="email" property="email"/>
+		</collection>
+	</resultMap>
+	
+	<select id="getDeptByIdPlus" resultMap="MyMapWithCollection">
+		SELECT d.id,dept_name,e.id eid,last_name,gender,email FROM DEPT d,EMPLOYEE e WHERE d.id = e.d_id AND d.id = #{id}
+	</select>
+	
+	<!-- 使用分步查询的方式 -->
+	<resultMap type="cn.zhang.beans.Department" id="MyMapWithCollectionByStep">
+		<id column="id" property="id"/>
+		<result column="dept_name" property="deptName"/>
+		<collection property="emps" select="cn.zhang.dao.EmployeeMapperPlus.getEmpsByDeptId"
+			column="{id=id}" fetchType="eager">
+		</collection>
+	</resultMap>
+	<select id="getDeptByIdByStep" resultMap="MyMapWithCollectionByStep">
+		SELECT * FROM DEPT WHERE ID = #{id}
+	</select>
+	
+	<!-- 
+		扩展:如果分步查询需要将多个列的值传递。怎么办呢?
+			解决办法:将多列的值封装Map进行了传递
+			此时column就需要写成:column={key1=column1,key2=column2...}
+			此处的key1、key2指的是在collection或者association标签中指定的select属性的查询方法中获取指定的值的键
+			column1、column2值的是需要将那些列进行传递
+		示例:
+			select的语句:select * from table where id = #{abcd}
+			此时使用分步查询的collection和association的column列就可以使用{abcd=id}来将参数传递进去
+		fetchType="lazy":表示使用延时加载,默认是lazy,即懒加载模式
+			尽管我们在全局配置文件中使用setting指定了懒加载，但是也可以再此处进行懒加载的屏蔽
+			此属性可以指定两个值
+				lazy:延时加载
+				eager:立即加载
+	-->
+	
+</mapper>
